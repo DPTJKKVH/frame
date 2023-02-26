@@ -70,6 +70,7 @@
     "@metamask/eth-sig-util": "5.0.2",
     "@sentry/electron": "4.2.0",
     "@trezor/connect": "9.0.5",
+    "@types/bip39": "^3.0.0",
     "auto-launch": "5.0.5",
     "bip39": "3.0.4",
     "cheerio": "1.0.0-rc.12",
