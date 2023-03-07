@@ -69,15 +69,15 @@ const systemTrayEventHandlers: SystemTrayEventHandlers = {
 const systemTray = new SystemTray(systemTrayEventHandlers)
 const getDisplaySummonShortcut = () => store('main.shortcuts.altSlash')
 
-const topRight = (window: BrowserWindow) => {
-  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
-  const screenSize = area
-  const windowSize = window.getSize()
-  return {
-    x: Math.floor(screenSize.x + screenSize.width - windowSize[0]),
-    y: screenSize.y
-  }
-}
+// const topRight = (window: BrowserWindow) => {
+//  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
+//  const screenSize = area
+//  const windowSize = window.getSize()
+//  return {
+//    x: Math.floor(screenSize.x + screenSize.width - windowSize[0]),
+//    y: screenSize.y
+//  }
+// }
 
 const detectMouse = () => {
   const m1 = screen.getCursorScreenPoint()
@@ -96,7 +96,7 @@ const detectMouse = () => {
       const area = screen.getDisplayNearestPoint(m2).workArea
       m2.y = m2.y - area.y
       if (m2.x >= minX && m2.y === m1.y) {
-        glide = true
+     //   glide = true
         app.show()
       } else {
         detectMouse()
@@ -130,10 +130,10 @@ function initTrayWindow() {
   windows.tray.on('closed', () => delete windows.tray)
   windows.tray.webContents.session.setPermissionRequestHandler((webContents, permission, res) => res(false))
   windows.tray.setResizable(true)
-  windows.tray.setMovable(false)
+  windows.tray.setMovable(true)
 
   const { width, height, x, y } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
-  windows.tray.setPosition(width + x, height + y)
+  // windows.tray.setPosition(width + x, height + y)
 
   windows.tray.on('show', () => {
     if (process.platform === 'win32') {
@@ -150,7 +150,7 @@ function initTrayWindow() {
 
   setTimeout(() => {
     windows.tray.on('focus', () => {
-        glide = false
+    //    glide = false
       tray.show()
     })
   }, 2000)
@@ -282,11 +282,11 @@ export class Tray {
       this.recentDisplayEvent = false
     }, 150)
 
-    if (isMacOS) {
-      windows.tray.setPosition(0, 0)
-    } else {
+    // if (isMacOS) {
+    //  windows.tray.setPosition(0, 0)
+    // } else {
       windows.tray.setAlwaysOnTop(false)
-    }
+    // }
     windows.tray.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
       skipTransformProcessType: true
@@ -297,19 +297,19 @@ export class Tray {
     windows.tray.setMinimumSize(trayWidth, height)
     windows.tray.setSize(trayWidth, height)
     windows.tray.setMaximumSize(trayWidth, height)
-    const pos = topRight(windows.tray)
-    windows.tray.setPosition(pos.x, pos.y)
+    // const pos = topRight(windows.tray)
+    // windows.tray.setPosition(pos.x, pos.y)
     store.trayOpen(true)
     windows.tray.emit('show')
-    if (glide && isMacOS) {
-      windows.tray.showInactive()
-    } else {
+   // if (glide && isMacOS) {
+   //   windows.tray.showInactive()
+   // } else {
       windows.tray.show()
-    }
+   // }
     events.emit('tray:show')
-    if (windows && windows.tray && windows.tray.focus && !glide) {
-      windows.tray.focus()
-    }
+    // if (windows && windows.tray && windows.tray.focus && !glide) {
+    //  windows.tray.focus()
+    // }
     windows.tray.setVisibleOnAllWorkspaces(false, {
       visibleOnFullScreen: true,
       skipTransformProcessType: true
@@ -371,23 +371,23 @@ class Dash {
       this.recentDisplayEvent = false
     }, 150)
     setTimeout(() => {
-      if (isMacOS) {
-        windows.dash.setPosition(0, 0)
-      } else {
+     // if (isMacOS) {
+     //   windows.dash.setPosition(0, 0)
+     // } else {
         windows.dash.setAlwaysOnTop(true)
-      }
+     // }
       windows.dash.setVisibleOnAllWorkspaces(true, {
         visibleOnFullScreen: true,
         skipTransformProcessType: true
       })
-      windows.dash.setResizable(false) // Keeps height consistent
+      windows.dash.setResizable(true) // Keeps height consistent
       const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
       const height = isDev && !fullheight ? devHeight : area.height
       windows.dash.setMinimumSize(trayWidth, height)
       windows.dash.setSize(trayWidth, height)
       windows.dash.setMaximumSize(trayWidth, height)
-      const { x, y } = topRight(windows.dash)
-      windows.dash.setPosition(x - trayWidth - 5, y)
+     // const { x, y } = topRight(windows.dash)
+     // windows.dash.setPosition(x - trayWidth - 5, y)
       windows.dash.show()
       if (!windows.tray.isVisible()) windows.tray.show()
       windows.dash.focus()
@@ -451,11 +451,11 @@ class Onboard {
       const width = targetWidth > maxWidth ? maxWidth : targetWidth
       windows.onboard.setMinimumSize(600, 300)
       windows.onboard.setSize(width, height)
-      const pos = topRight(windows.onboard)
+      // const pos = topRight(windows.onboard)
 
       // const x = (pos.x * 2 - width * 2 - 810) / 2
       const x = pos.x - 880
-      windows.onboard.setPosition(x, pos.y + 80)
+      // windows.onboard.setPosition(x, pos.y + 80)
       // windows.onboard.setAlwaysOnTop(true)
       windows.onboard.show()
       windows.onboard.focus()
@@ -471,12 +471,12 @@ class Onboard {
 }
 
 ipcMain.on('tray:quit', () => electronApp.quit())
-ipcMain.on('tray:mouseout', () => {
-  if (glide && !(windows.dash && windows.dash.isVisible())) {
-    glide = false
-    app.hide()
-  }
-})
+// ipcMain.on('tray:mouseout', () => {
+//  if (glide && !(windows.dash && windows.dash.isVisible())) {
+//    glide = false
+//    app.hide()
+//  }
+// })
 
 // deny navigation, webview attachment & new windows on creation of webContents
 // also set elsewhere but enforced globally here to minimize possible vectors of attack
