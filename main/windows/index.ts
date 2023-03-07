@@ -129,7 +129,7 @@ function initTrayWindow() {
 
   windows.tray.on('closed', () => delete windows.tray)
   windows.tray.webContents.session.setPermissionRequestHandler((webContents, permission, res) => res(false))
-  windows.tray.setResizable(false)
+  windows.tray.setResizable(true)
   windows.tray.setMovable(false)
 
   const { width, height, x, y } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
@@ -150,9 +150,7 @@ function initTrayWindow() {
 
   setTimeout(() => {
     windows.tray.on('focus', () => {
-      if (isMacOS) {
         glide = false
-      }
       tray.show()
     })
   }, 2000)
@@ -287,13 +285,13 @@ export class Tray {
     if (isMacOS) {
       windows.tray.setPosition(0, 0)
     } else {
-      windows.tray.setAlwaysOnTop(true)
+      windows.tray.setAlwaysOnTop(false)
     }
     windows.tray.setVisibleOnAllWorkspaces(true, {
       visibleOnFullScreen: true,
       skipTransformProcessType: true
     })
-    windows.tray.setResizable(false) // Keeps height consistent
+    windows.tray.setResizable(true) // Keeps height consistent
     const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
     const height = isDev && !fullheight ? devHeight : area.height
     windows.tray.setMinimumSize(trayWidth, height)
