@@ -120,6 +120,12 @@ export interface TransactionRequest extends AccountRequest<'transaction'> {
   classification: TxClassification
 }
 
+export interface SignRequest extends AccountRequest<'sign'> {
+  data: {
+    decodedMessage: string
+  }
+}
+
 export type TypedData<T extends MessageTypes = MessageTypes> = BaseTypedMessage<T>
 export type LegacyTypedData = TypedDataV1
 
@@ -130,7 +136,7 @@ export interface TypedMessage<V extends SignTypedDataVersion = SignTypedDataVers
 
 export type SignTypedDataRequest = DefaultSignTypedDataRequest | PermitSignatureRequest
 
-export type SignatureRequest = SignTypedDataRequest | AccountRequest<'sign'>
+export type SignatureRequest = SignTypedDataRequest | SignRequest
 
 export interface DefaultSignTypedDataRequest extends AccountRequest<'signTypedData'> {
   typedMessage: TypedMessage
@@ -162,7 +168,7 @@ export interface PermitSignatureRequest extends AccountRequest<'signErc20Permit'
   tokenData: TokenData
 }
 
-export interface AccessRequest extends AccountRequest<'access'> {}
+export type AccessRequest = AccountRequest<'access'>
 
 export interface AddChainRequest extends AccountRequest<'addChain'> {
   chain: Chain

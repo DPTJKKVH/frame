@@ -1,8 +1,9 @@
 const fs = require('fs')
-const { ipcMain, dialog } = require('electron')
+const { ipcMain } = require('electron')
 const log = require('electron-log')
 const { randomBytes } = require('crypto')
 import { isAddress } from '@ethersproject/address'
+import { openFileDialog } from '../windows/dialog'
 import { openBlockExplorer } from '../windows/window'
 
 const accounts = require('../accounts').default
@@ -133,7 +134,7 @@ const rpc = {
       }
     })
   },
-  confirmRequestApproval(req, approvalType, approvalData, cb) {
+  confirmRequestApproval(req, approvalType, approvalData) {
     accounts.confirmRequestApproval(req.handlerId, approvalType, approvalData)
   },
   respondToExtensionRequest(id, approved, cb) {
@@ -142,7 +143,7 @@ const rpc = {
   updateRequest(reqId, data, actionId) {
     accounts.updateRequest(reqId, data, actionId)
   },
-  approveRequest(req, cb) {
+  approveRequest(req) {
     accounts.setRequestPending(req)
     if (req.type === 'transaction') {
       provider.approveTransactionRequest(req, (err, res) => {
@@ -161,7 +162,7 @@ const rpc = {
       })
     }
   },
-  declineRequest(req, cb) {
+  declineRequest(req) {
     if (req.type === 'transaction' || isSignatureRequest(req)) {
       accounts.declineRequest(req.handlerId)
       provider.declineRequest(req)
@@ -177,35 +178,35 @@ const rpc = {
     accounts.add(address, name, options)
     cb()
   },
-  removeAccount(address, options, cb) {
+  removeAccount(address, _options, cb) {
     accounts.remove(address)
     cb()
   },
   createFromPhrase(phrase, password, cb) {
     signers.createFromPhrase(phrase, password, cb)
   },
-  locateKeystore(cb) {
-    dialog
-      .showOpenDialog({ properties: ['openFile'] })
-      .then((file) => {
-        const keystore = file || { filePaths: [] }
-        if ((keystore.filePaths || []).length > 0) {
-          fs.readFile(keystore.filePaths[0], 'utf8', (err, data) => {
-            if (err) return cb(err)
-            try {
-              const parsed = JSON.parse(data)
-              if (typeof parsed.version !== 'number') cb('Invalid keystore file')
-              if (![1, 3].includes(parsed.version)) cb('Invalid keystore version')
-              cb(null, parsed)
-            } catch (err) {
-              cb(err)
-            }
-          })
-        } else {
-          cb(new Error('No Keystore Found'))
-        }
-      })
-      .catch(cb)
+  async locateKeystore(cb) {
+    try {
+      const file = await openFileDialog()
+      const keystore = file || { filePaths: [] }
+      if ((keystore.filePaths || []).length > 0) {
+        fs.readFile(keystore.filePaths[0], 'utf8', (err, data) => {
+          if (err) return cb(err)
+          try {
+            const parsed = JSON.parse(data)
+            if (typeof parsed.version !== 'number') cb('Invalid keystore file')
+            if (![1, 3].includes(parsed.version)) cb('Invalid keystore version')
+            cb(null, parsed)
+          } catch (err) {
+            cb(err)
+          }
+        })
+      } else {
+        cb(new Error('No Keystore Found'))
+      }
+    } catch (e) {
+      cb(e)
+    }
   },
   createFromKeystore(keystore, password, keystorePassword, cb) {
     signers.createFromKeystore(keystore, keystorePassword, password, cb)
@@ -269,7 +270,7 @@ const rpc = {
     accounts.signerCompatibility(handlerId, cb)
   },
   // flow
-  async flowCommand(command, cb) {
+  async flowCommand(command) {
     // console.log('flowCommand', command, cb)
     await dapps.add(command.input, {}, (err, res) => {
       if (err || res) console.log(err, res)

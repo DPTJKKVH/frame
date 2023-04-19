@@ -1,4 +1,3 @@
-import React, { useRef } from 'react'
 import { useState } from 'react'
 import zxcvbn from 'zxcvbn'
 import useFocusableRef from '../../Hooks/useFocusableRef'
@@ -7,27 +6,42 @@ import { debounce } from '../../utils'
 
 const NO_PASSWORD_ENTERED = 'Enter password'
 
-export const PasswordInput = ({ getError: getInputError, next, title, buttonText, autofocus }) => {
+export const PasswordInput = ({
+  getError: getInputError,
+  next,
+  title,
+  buttonText,
+  autofocus,
+  lastStep = false
+}) => {
   const [error, setError] = useState(NO_PASSWORD_ENTERED)
   const inputRef = useFocusableRef(autofocus)
   const [disabled, setDisabled] = useState(false)
+  const [processing, setProcessing] = useState(false)
 
   const resetError = () => setError(NO_PASSWORD_ENTERED)
 
   const clear = () => {
-    resetError()
     inputRef.current && (inputRef.current.value = '')
   }
 
   const handleSubmit = () => {
     next(inputRef.current.value)
-    setTimeout(clear, 1_000)
+    if (lastStep) {
+      setProcessing(true)
+      clear()
+    } else {
+      setTimeout(() => {
+        resetError()
+        clear()
+      }, 1_000)
+    }
   }
 
   const getError = () =>
     inputRef.current.value ? getInputError(inputRef.current.value) || '' : NO_PASSWORD_ENTERED
 
-  const validateInput = (e) => {
+  const validateInput = () => {
     const err = getError()
     if (err) {
       setDisabled(true)
@@ -61,6 +75,10 @@ export const PasswordInput = ({ getError: getInputError, next, title, buttonText
         <div role='button' className='addAccountItemOptionError'>
           {error}
         </div>
+      ) : processing ? (
+        <div role='button' className='addAccountItemOptionProcessing'>
+          Processing...
+        </div>
       ) : (
         <div role='button' className='addAccountItemOptionSubmit' onClick={() => !disabled && handleSubmit()}>
           {buttonText}
@@ -93,7 +111,7 @@ export const CreatePassword = ({ onCreate, autofocus }) => {
   )
 }
 
-export const ConfirmPassword = ({ password, onConfirm, autofocus }) => {
+export const ConfirmPassword = ({ password, onConfirm, autofocus, lastStep }) => {
   const getError = (confirmedPassword) => {
     if (password !== confirmedPassword) return 'PASSWORDS DO NOT MATCH'
   }
@@ -105,6 +123,7 @@ export const ConfirmPassword = ({ password, onConfirm, autofocus }) => {
       title='Confirm Password'
       buttonText='Create'
       autofocus={autofocus}
+      lastStep={lastStep}
     />
   )
 }

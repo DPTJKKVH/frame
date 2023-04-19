@@ -55,13 +55,11 @@ class _AccountModule extends React.Component {
 
     return (
       <Module
-        {...{
-          account,
-          expanded,
-          expandedData,
-          filter,
-          moduleId
-        }}
+        account={account}
+        expanded={expanded}
+        expandedData={expandedData}
+        filter={filter}
+        moduleId={moduleId}
       />
     )
   }
@@ -240,15 +238,13 @@ class _AccountBody extends React.Component {
 
     return (
       <Request
-        {...{
-          key: handlerId,
-          req,
-          step,
-          signingDelay,
-          chainId: chainData.chainId,
-          originName,
-          chainData
-        }}
+        key={handlerId}
+        req={req}
+        step={step}
+        signingDelay={signingDelay}
+        chainId={chainData.chainId}
+        originName={originName}
+        chainData={chainData}
       />
     )
   }
@@ -319,13 +315,6 @@ const AccountBody = Restore.connect(_AccountBody)
 class Account extends React.Component {
   render() {
     const minimized = this.store('selected.minimized')
-
-    const account = this.store('main.accounts', this.props.id)
-    let signer
-
-    if (account.signer) {
-      signer = this.store('main.signers', account.signer)
-    }
 
     return (
       <AccountBody

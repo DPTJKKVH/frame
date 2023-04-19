@@ -1,8 +1,7 @@
-import React from 'react'
 import useCountdown from '../../Hooks/useCountdown'
 
-export default ({ end, title, titleClass, innerClass }) => {
-  const ttl = isFinite(new Date(end)) ? useCountdown(end) : 'INVALID DATE'
+const Countdown = ({ end, title, titleClass, innerClass }) => {
+  const ttl = useCountdown(end)
 
   return (
     <div className={titleClass}>
@@ -13,3 +12,5 @@ export default ({ end, title, titleClass, innerClass }) => {
     </div>
   )
 }
+
+export default Countdown

@@ -17,17 +17,19 @@ import accounts, {
   AddChainRequest,
   AddTokenRequest
 } from '../accounts'
+
+import FrameAccount from '../accounts/Account'
 import Chains, { Chain } from '../chains'
+import reveal from '../reveal'
 import { getSignerType, Type as SignerType } from '../../resources/domain/signer'
 import { normalizeChainId, TransactionData } from '../../resources/domain/transaction'
 import { populate as populateTransaction, maxFee, classifyTransaction } from '../transaction'
-import FrameAccount from '../accounts/Account'
 import { capitalize } from '../../resources/utils'
 import { ApprovalType } from '../../resources/constants'
 import { createObserver as AssetsObserver, loadAssets } from './assets'
 import { getVersionFromTypedData } from './typedData'
-import reveal from '../reveal'
 
+import { Subscription, SubscriptionType, hasSubscriptionPermission } from './subscriptions'
 import {
   checkExistingNonceGas,
   ecRecover,
@@ -38,7 +40,7 @@ import {
   getSignedAddress,
   requestPermissions,
   resError,
-  hasPermission
+  decodeMessage
 } from './helpers'
 
 import {
@@ -50,19 +52,13 @@ import {
   EIP2612TypedData,
   LegacyTypedData,
   PermitSignatureRequest,
+  SignatureRequest,
   TypedData,
   TypedMessage
 } from '../accounts/types'
 import * as sigParser from '../signatures'
 import { hasAddress } from '../../resources/domain/account'
 import { mapRequest } from '../requests'
-
-type Subscription = {
-  id: string
-  originId: string
-}
-
-type Subscriptions = { [key in SubscriptionType]: Subscription[] }
 
 interface RequiredApproval {
   type: ApprovalType
@@ -85,7 +81,7 @@ export class Provider extends EventEmitter {
   connection = Chains
 
   handlers: { [id: string]: any } = {}
-  subscriptions: Subscriptions = {
+  subscriptions: { [key in SubscriptionType]: Subscription[] } = {
     accountsChanged: [],
     assetsChanged: [],
     chainChanged: [],
@@ -134,6 +130,13 @@ export class Provider extends EventEmitter {
       })
     })
 
+    proxyConnection.on('provider:subscribe', (payload: RPC.Subscribe.Request) => {
+      const subId = this.createSubscription(payload)
+      const { id, jsonrpc } = payload
+
+      proxyConnection.emit('payload', { id, jsonrpc, result: subId })
+    })
+
     this.getNonce = this.getNonce.bind(this)
   }
 
@@ -141,13 +144,17 @@ export class Provider extends EventEmitter {
     const address = accounts[0]
 
     this.subscriptions.accountsChanged
-      .filter((subscription) => hasPermission(address, subscription.originId))
+      .filter((subscription) =>
+        hasSubscriptionPermission(SubscriptionType.ACCOUNTS, address, subscription.originId)
+      )
       .forEach((subscription) => this.sendSubscriptionData(subscription.id, accounts))
   }
 
   assetsChanged(address: string, assets: RPC.GetAssets.Assets) {
     this.subscriptions.assetsChanged
-      .filter((subscription) => hasPermission(address, subscription.originId))
+      .filter((subscription) =>
+        hasSubscriptionPermission(SubscriptionType.ASSETS, address, subscription.originId)
+      )
       .forEach((subscription) => this.sendSubscriptionData(subscription.id, { ...assets, account: address }))
   }
 
@@ -160,10 +167,10 @@ export class Provider extends EventEmitter {
   }
 
   // fires when the list of available chains changes
-  chainsChanged(chains: RPC.GetEthereumChains.Chain[]) {
-    this.subscriptions.chainsChanged.forEach((subscription) =>
-      this.sendSubscriptionData(subscription.id, chains)
-    )
+  chainsChanged(address: string, chains: RPC.GetEthereumChains.Chain[]) {
+    this.subscriptions.chainsChanged
+      .filter((subscription) => hasSubscriptionPermission('chainsChanged', address, subscription.originId))
+      .forEach((subscription) => this.sendSubscriptionData(subscription.id, chains))
   }
 
   networkChanged(netId: number | string, originId: string) {
@@ -179,27 +186,24 @@ export class Provider extends EventEmitter {
       params: { subscription, result }
     }
 
+    proxyConnection.emit('payload', payload)
     this.emit('data:subscription', payload)
   }
 
   getNetVersion(payload: RPCRequestPayload, res: RPCRequestCallback, targetChain: Chain) {
-    const connection = this.connection.connections[targetChain.type][targetChain.id]
-    const chainConnected = connection && (connection.primary?.connected || connection.secondary?.connected)
-
-    const response = chainConnected
-      ? { result: connection.chainId }
-      : { error: { message: 'not connected', code: 1 } }
+    const chain = store('main.networks.ethereum', targetChain.id)
+    const response = chain?.on
+      ? { result: targetChain.id }
+      : { error: { message: 'not connected', code: -1 } }
 
     res({ id: payload.id, jsonrpc: payload.jsonrpc, ...response })
   }
 
   getChainId(payload: RPCRequestPayload, res: RPCSuccessCallback, targetChain: Chain) {
-    const connection = this.connection.connections[targetChain.type][targetChain.id]
-    const chainConnected = connection.primary?.connected || connection.secondary?.connected
-
-    const response = chainConnected
+    const chain = store('main.networks.ethereum', targetChain.id)
+    const response = chain?.on
       ? { result: intToHex(targetChain.id) }
-      : { error: { message: 'not connected', code: 1 } }
+      : { error: { message: 'not connected', code: -1 } }
 
     res({ id: payload.id, jsonrpc: payload.jsonrpc, ...response })
   }
@@ -591,8 +595,12 @@ export class Provider extends EventEmitter {
   }
 
   sign(payload: RPCRequestPayload, res: RPCRequestCallback) {
-    const [from] = payload.params || []
+    const [from, message] = payload.params || []
     const currentAccount = accounts.current()
+
+    if (!message) {
+      return resError('Sign request requires a message param', payload, res)
+    }
 
     if (!currentAccount || !hasAddress(currentAccount, from)) {
       return resError('Sign request is not from currently selected account', payload, res)
@@ -605,8 +613,11 @@ export class Provider extends EventEmitter {
       type: 'sign',
       payload,
       account: (currentAccount as FrameAccount).getAccounts()[0],
-      origin: payload._origin
-    } as const
+      origin: payload._origin,
+      data: {
+        decodedMessage: decodeMessage(message)
+      }
+    } as SignatureRequest
 
     const _res = (data: any) => {
       if (this.handlers[req.handlerId]) this.handlers[req.handlerId](data)
@@ -674,10 +685,16 @@ export class Provider extends EventEmitter {
     if (
       version !== SignTypedDataVersion.V4 &&
       signerType &&
-      [SignerType.Ledger, SignerType.Lattice, SignerType.Trezor].includes(signerType)
+      [SignerType.Ledger, SignerType.Trezor].includes(signerType)
     ) {
       const signerName = capitalize(signerType)
       return resError(`${signerName} only supports eth_signTypedData_v4+`, payload, res)
+    }
+    if (
+      ![SignTypedDataVersion.V3, SignTypedDataVersion.V4].includes(version) &&
+      signerType === SignerType.Lattice
+    ) {
+      return resError('Lattice only supports eth_signTypedData_v3+', payload, res)
     }
 
     const handlerId = this.addRequestHandler(res)
@@ -744,13 +761,19 @@ export class Provider extends EventEmitter {
   subscribe(payload: RPC.Subscribe.Request, res: RPCSuccessCallback) {
     log.debug('provider subscribe', { payload })
 
+    const subId = this.createSubscription(payload)
+
+    res({ id: payload.id, jsonrpc: '2.0', result: subId })
+  }
+
+  private createSubscription(payload: RPC.Subscribe.Request) {
     const subId = addHexPrefix(crypto.randomBytes(16).toString('hex'))
-    const subscriptionType = payload.params[0]
+    const subscriptionType = payload.params[0] as SubscriptionType
 
     this.subscriptions[subscriptionType] = this.subscriptions[subscriptionType] || []
     this.subscriptions[subscriptionType].push({ id: subId, originId: payload._origin })
 
-    res({ id: payload.id, jsonrpc: '2.0', result: subId })
+    return subId
   }
 
   ifSubRemove(id: string) {
@@ -847,9 +870,12 @@ export class Provider extends EventEmitter {
 
     this.getChainId(
       payload,
-      (resp) => {
-        const chainId = parseInt(resp.result)
+      (resp: RPCResponsePayload) => {
+        if (resp.error) {
+          return resError(resp.error, payload, cb)
+        }
 
+        const chainId = parseInt(resp.result)
         const address = (tokenData.address || '').toLowerCase()
         const symbol = (tokenData.symbol || '').toUpperCase()
         const decimals = parseInt(tokenData.decimals || '1')
@@ -878,12 +904,6 @@ export class Provider extends EventEmitter {
           decimals,
           logoURI: tokenData.image || tokenData.logoURI || ''
         }
-
-        // const result = {
-        //   suggestedAssetMeta: {
-        //     asset: { token }
-        //   }
-        // }
 
         const handlerId = this.addRequestHandler(res)
 

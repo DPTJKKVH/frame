@@ -4,7 +4,6 @@ import Restore from 'react-restore'
 import Signer from '../../../Signer'
 
 import link from '../../../../../resources/link'
-import svg from '../../../../../resources/svg'
 import RingIcon from '../../../../../resources/Components/RingIcon'
 
 function parseDeviceName(name) {
@@ -68,7 +67,7 @@ class AddHardwareLattice extends React.Component {
 
   next() {
     this.blurActive()
-    this.setState({ index: ++this.state.index })
+    this.setState({ index: this.state.index + 1 })
     this.focusActive()
   }
 

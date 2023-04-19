@@ -1,4 +1,3 @@
-import React from 'react'
 import { useState } from 'react'
 
 import useFocusableRef from '../../../../../resources/Hooks/useFocusableRef'
@@ -166,7 +165,13 @@ export function AddHotAccount({
   const steps = [
     firstFlowStep,
     <CreatePassword key={1} onCreate={onCreate} autofocus={viewIndex === 1} />,
-    <ConfirmPassword key={2} password={password} onConfirm={onConfirm} autofocus={viewIndex === 2} />,
+    <ConfirmPassword
+      key={2}
+      password={password}
+      onConfirm={onConfirm}
+      autofocus={viewIndex === 2}
+      lastStep={true}
+    />,
     <Error key={3} error={error} />
   ]
 

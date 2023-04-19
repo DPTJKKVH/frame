@@ -26,7 +26,7 @@ const latestStateVersion = () => {
 }
 
 const get = (path, obj = latestStateVersion()) => {
-  path.split('.').some((key, i) => {
+  path.split('.').some((key) => {
     if (typeof obj !== 'object') {
       obj = undefined
     } else {
@@ -189,7 +189,13 @@ const initial = {
       signerCompatibilityWarning: main('mute.signerCompatibilityWarning', false)
     },
     shortcuts: {
-      altSlash: main('shortcuts.altSlash', true)
+      altSlash: main('shortcuts.altSlash', true),
+      summon: main('shortcuts.summon', {
+        modifierKeys: ['Alt'],
+        shortcutKey: 'Slash',
+        enabled: true,
+        configuring: false
+      })
     },
     // showUSDValue: main('showUSDValue', true),
     launch: main('launch', false),
@@ -612,7 +618,6 @@ const initial = {
             }
           },
           nativeCurrency: {
-            symbol: 'ETH',
             usd: {
               price: 0,
               change24hr: 0
@@ -679,7 +684,6 @@ const initial = {
             }
           },
           nativeCurrency: {
-            symbol: 'ETH',
             usd: {
               price: 0,
               change24hr: 0
@@ -765,6 +769,11 @@ Object.keys(initial.main.accounts).forEach((id) => {
   initial.main.accounts[id].balances = { lastUpdated: undefined }
 })
 
+Object.values(initial.main.networks.ethereum).forEach((chain) => {
+  chain.connection.primary = { ...chain.connection.primary, connected: false }
+  chain.connection.secondary = { ...chain.connection.secondary, connected: false }
+})
+
 Object.values(initial.main.networksMeta).forEach((chains) => {
   Object.values(chains).forEach((chainMeta) => {
     // remove stale price data
@@ -788,7 +797,7 @@ initial.main.origins = Object.entries(initial.main.origins).reduce((origins, [id
 }, {})
 
 initial.main.knownExtensions = Object.fromEntries(
-  Object.entries(initial.main.knownExtensions).filter(([id, allowed]) => allowed)
+  Object.entries(initial.main.knownExtensions).filter(([_id, allowed]) => allowed)
 )
 
 initial.main.dapps = Object.fromEntries(

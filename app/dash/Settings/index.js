@@ -1,11 +1,34 @@
-import React, { useState, useEffect } from 'react'
+import { Component } from 'react'
 import Restore from 'react-restore'
 
 import link from '../../../resources/link'
 import Dropdown from '../../../resources/Components/Dropdown'
-import { getSummonShortcut } from '../../../resources/app'
+import KeyboardShortcutConfigurator from '../../../resources/Components/KeyboardShortcutConfigurator'
 
-class Settings extends React.Component {
+import styled from 'styled-components'
+
+const EditShortcut = styled.div`
+  position: absolute;
+  top: 1px;
+  bottom: 0px;
+  left: calc(100% + 10px);
+  background: var(--ghostC);
+  height: 20px;
+  width: 60px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 500;
+  * {
+    pointer-events: none;
+  }
+`
+
+class Settings extends Component {
   constructor(props, context) {
     super(props, context)
     const latticeEndpoint = context.store('main.latticeSettings.endpointCustom')
@@ -30,35 +53,68 @@ class Settings extends React.Component {
   }
 
   render() {
-    const { modifierKey, summonKey } = getSummonShortcut(this.store('platform'))
+    const summonShortcut = this.store('main.shortcuts.summon')
+    const platform = this.store('platform')
+
     return (
       <div className={'localSettings cardShow'}>
         <div className='localSettingsWrap'>
           <div className='signerPermission localSetting' style={{ zIndex: 214 }}>
             <div className='signerPermissionControls'>
-              <div className='signerPermissionSetting'>Summon Shortcut</div>
+              <div className='signerPermissionSetting'>
+                <span style={{ position: 'relative' }}>
+                  Summon Shortcut
+                  <div>
+                    {summonShortcut.configuring ? (
+                      <EditShortcut
+                        onClick={() => {
+                          link.send('tray:action', 'setShortcut', 'summon', {
+                            ...summonShortcut,
+                            configuring: false
+                          })
+                        }}
+                      >
+                        cancel
+                      </EditShortcut>
+                    ) : (
+                      <EditShortcut
+                        onClick={() => {
+                          link.send('tray:action', 'setShortcut', 'summon', {
+                            ...summonShortcut,
+                            configuring: true
+                          })
+                        }}
+                      >
+                        edit
+                      </EditShortcut>
+                    )}
+                  </div>
+                </span>
+              </div>
+
               <div
                 className={
-                  this.store('main.shortcuts.altSlash')
+                  summonShortcut.enabled
                     ? 'signerPermissionToggle signerPermissionToggleOn'
                     : 'signerPermissionToggle'
                 }
-                onClick={(_) =>
-                  link.send('tray:action', 'setAltSpace', !this.store('main.shortcuts.altSlash'))
-                }
+                onClick={() => {
+                  link.send('tray:action', 'setShortcut', 'summon', {
+                    ...summonShortcut,
+                    enabled: !summonShortcut.enabled
+                  })
+                }}
               >
                 <div className='signerPermissionToggleSwitch' />
               </div>
             </div>
             <div className='signerPermissionDetails'>
-              <span>
-                Summon Frame by pressing{' '}
-                <span className='keyCommand'>
-                  {modifierKey}
-                  <span style={{ padding: '0px 3px' }}>+</span>
-                  {summonKey}
-                </span>
-              </span>
+              <KeyboardShortcutConfigurator
+                actionText='summon Frame'
+                shortcut={summonShortcut}
+                shortcutName='summon'
+                platform={platform}
+              />
             </div>
           </div>
           <div className='signerPermission localSetting' style={{ zIndex: 213 }}>
@@ -186,7 +242,7 @@ class Settings extends React.Component {
               />
             </div>
             <div className='signerPermissionDetails'>
-              <span>Set Frame's visual theme</span>
+              <span>Set Frame&apos;s visual theme</span>
             </div>
           </div>
 

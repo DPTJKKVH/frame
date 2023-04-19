@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 
 import chainDefault from '../chainDefault'
 import link from '../../../../../resources/link'
@@ -34,7 +34,9 @@ const isChainFilled = (chain) => {
 const getUrl = (urlStr) => {
   try {
     return new URL(urlStr)
-  } catch (e) {}
+  } catch (e) {
+    // ignore errors
+  }
 }
 
 const isValidRpc = (urlStr) => {

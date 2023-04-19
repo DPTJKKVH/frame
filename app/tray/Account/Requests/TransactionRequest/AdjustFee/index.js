@@ -89,7 +89,7 @@ const FeeOverlayInput = ({ initialValue, labelText, tabIndex, decimals, onReceiv
           className='txFeeOverlayInput'
           aria-labelledby={labelId}
           onChange={(e) => {
-            const parsedInput = (decimals ? /[0-9\.]*/ : /[0-9]*/).exec(e.target.value)
+            const parsedInput = (decimals ? /[0-9.]*/ : /[0-9]*/).exec(e.target.value)
             const enteredValue = parsedInput[0] || ''
 
             if (enteredValue === '.' || enteredValue === '') return setValue(enteredValue)
@@ -267,8 +267,9 @@ class TxFeeOverlay extends Component {
     }
 
     const receiveValueHandler = (value, name) => {
-      // FIXME: should not set state directly
-      this.state[name] = value
+      this.setState({
+        [name]: value
+      })
 
       link.rpc(`set${name.charAt(0).toUpperCase() + name.slice(1)}`, bnToHex(value), handlerId, (e) => {
         if (e) console.error(e)

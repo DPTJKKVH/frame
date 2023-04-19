@@ -11,7 +11,7 @@ import {
 } from '@ethereumjs/util'
 import log from 'electron-log'
 import BN from 'bignumber.js'
-import { v5 as uuidv5 } from 'uuid'
+import isUtf8 from 'isutf8'
 import { isHexString } from 'ethers/lib/utils'
 
 import store from '../store'
@@ -20,6 +20,16 @@ import { usesBaseFee, TransactionData, GasFeesSource } from '../../resources/dom
 import { getAddress } from '../../resources/utils'
 
 const permission = (date: number, method: string) => ({ parentCapability: method, date })
+
+export function decodeMessage(rawMessage: string) {
+  if (isHexString(rawMessage)) {
+    const buff = Buffer.from(stripHexPrefix(rawMessage), 'hex')
+    return buff.length === 32 || !isUtf8(buff) ? rawMessage : buff.toString('utf8')
+  }
+
+  // replace all multiple line returns with just one to prevent excess space in message
+  return rawMessage.replaceAll(/[\n\r]+/g, '\n')
+}
 
 export function checkExistingNonceGas(tx: TransactionData) {
   const { from, nonce } = tx
@@ -122,7 +132,7 @@ export function resError(errorData: string | EVMError, request: RPCId, res: RPCE
   res({ id: request.id, jsonrpc: request.jsonrpc, error })
 }
 
-export function getSignedAddress(signed: string, message: string, cb: Callback<String>) {
+export function getSignedAddress(signed: string, message: string, cb: Callback<string>) {
   const signature = Buffer.from((signed || '').replace('0x', ''), 'hex')
   if (signature.length !== 65) return cb(new Error('Frame verifySignature: Signature has incorrect length'))
   let v = signature[64]
@@ -149,15 +159,6 @@ export function requestPermissions(payload: JSONRPCRequestPayload, res: RPCReque
   const requestedOperations = (payload.params || []).map((param) => permission(now, Object.keys(param)[0]))
 
   res({ id: payload.id, jsonrpc: '2.0', result: requestedOperations })
-}
-
-export function hasPermission(address: string, originId: string) {
-  const permissions = store('main.permissions', address) as Record<string, Permission>
-  const permission = Object.values(permissions).find(({ origin }) => {
-    return uuidv5(origin, uuidv5.DNS) === originId
-  })
-
-  return permission?.provider
 }
 
 export function getActiveChainsFull() {

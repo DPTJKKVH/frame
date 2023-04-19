@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AddHotAccount } from '../Components'
 import link from '../../../../../resources/link'
 import { PasswordInput } from '../../../../../resources/Components/Password'
@@ -43,7 +43,7 @@ const LocateKeystore = ({ addKeystore, error, setError }) => {
 const Locating = () => (
   <div className='addAccountItemOptionSetupFrame'>
     <div role={'status'} className='addAccountItemOptionTitle' style={{ marginTop: '15px' }}>
-      Locating Keystore file
+      Locating Keystore file...
     </div>
   </div>
 )

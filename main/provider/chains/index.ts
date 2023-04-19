@@ -1,7 +1,6 @@
-// @ts-ignore
 import deepEqual from 'deep-equal'
 
-import { getColor } from '../../../resources/colors'
+import { Colorway, getColor } from '../../../resources/colors'
 import store from '../../store'
 
 // typed access to state
@@ -21,7 +20,7 @@ const storeApi = {
 }
 
 interface ChainsChangedHandler {
-  chainsChanged: (chains: RPC.GetEthereumChains.Chain[]) => void
+  chainsChanged: (address: Address, chains: RPC.GetEthereumChains.Chain[]) => void
 }
 
 interface ChainChangedHandler {
@@ -40,7 +39,11 @@ function createChainsObserver(handler: ChainsChangedHandler) {
 
     if (!deepEqual(currentChains, availableChains)) {
       availableChains = currentChains
-      handler.chainsChanged(availableChains)
+
+      setTimeout(() => {
+        const currentAccount = store('selected.current') as string
+        handler.chainsChanged(currentAccount, availableChains)
+      }, 0)
     }
   }
 }
@@ -71,9 +74,7 @@ function getActiveChains(): RPC.GetEthereumChains.Chain[] {
   const colorway = storeApi.getColorway()
 
   return Object.values(chains)
-    .filter(
-      (chain) => chain.on && (chain.connection.primary.connected || chain.connection.secondary.connected)
-    )
+    .filter((chain) => chain.on)
     .sort((a, b) => a.id - b.id)
     .map((chain) => {
       const { id, explorer, name } = chain
@@ -87,6 +88,7 @@ function getActiveChains(): RPC.GetEthereumChains.Chain[] {
         chainId: id,
         networkId: id,
         name,
+        connected: chain.connection.primary.connected || chain.connection.secondary.connected,
         nativeCurrency: {
           name: currencyName,
           symbol,

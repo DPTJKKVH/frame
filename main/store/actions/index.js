@@ -80,7 +80,7 @@ module.exports = {
       return Object.assign({}, secondary, status)
     })
   },
-  setLaunch: (u, launch) => u('main.launch', (_) => launch),
+  setLaunch: (u, launch) => u('main.launch', () => launch),
   toggleLaunch: (u) => u('main.launch', (launch) => !launch),
   toggleReveal: (u) => u('main.reveal', (reveal) => !reveal),
   toggleShowLocalNameWithENS: (u) =>
@@ -119,9 +119,9 @@ module.exports = {
     })
   },
   setAccount: (u, account) => {
-    u('selected.current', (_) => account.id)
-    u('selected.minimized', (_) => false)
-    u('selected.open', (_) => true)
+    u('selected.current', () => account.id)
+    u('selected.minimized', () => false)
+    u('selected.open', () => true)
   },
   setAccountSignerStatusOpen: (u, value) => {
     u('selected.signerStatusOpen', () => Boolean(value))
@@ -224,8 +224,13 @@ module.exports = {
   toggleSignerCompatibilityWarning: (u) => {
     u('main.mute.signerCompatibilityWarning', (v) => !v)
   },
-  setAltSpace: (u, v) => {
-    u('main.shortcuts.altSlash', () => v)
+  setShortcut: (u, name, shortcut) => {
+    u('main.shortcuts', name, (existingShortcut = {}) => ({
+      modifierKeys: shortcut.modifierKeys || existingShortcut.modifierKeys,
+      shortcutKey: shortcut.shortcutKey || existingShortcut.shortcutKey,
+      configuring: shortcut.configuring ?? existingShortcut.configuring,
+      enabled: shortcut.enabled ?? existingShortcut.enabled
+    }))
   },
   setAutohide: (u, v) => {
     u('main.autohide', () => v)
@@ -536,7 +541,7 @@ module.exports = {
     })
   },
   expandDock: (u, expand) => {
-    u('dock.expand', (s) => expand)
+    u('dock.expand', () => expand)
   },
   pin: (u) => {
     u('main.pin', (pin) => !pin)
@@ -864,12 +869,12 @@ module.exports = {
     })
   },
   unsetAccount: (u) => {
-    u('selected.open', (_) => false)
-    u('selected.minimized', (_) => true)
-    u('selected.view', (_) => 'default')
-    u('selected.showAccounts', (_) => false)
+    u('selected.open', () => false)
+    u('selected.minimized', () => true)
+    u('selected.view', () => 'default')
+    u('selected.showAccounts', () => false)
     u('windows.panel.nav', () => [])
-    setTimeout((_) => {
+    setTimeout(() => {
       u('selected', (signer) => {
         signer.last = signer.current
         signer.current = ''

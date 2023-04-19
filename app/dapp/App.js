@@ -1,9 +1,46 @@
 import React from 'react'
 import Restore from 'react-restore'
 
-import DappTile from './DappTile'
-import Native from '../../resources/Native'
 import link from '../../resources/link'
+import Native from '../../resources/Native'
+
+const FailedToLoad = () => {
+  return (
+    <div className='mainDappLoadingText'>
+      <div>{'Send dapp failed to load'}</div>
+    </div>
+  )
+}
+
+const MainnetDisconnected = () => {
+  return (
+    <>
+      <div className='mainDappLoadingText'>
+        <div>{'Mainnet connection required'}</div>
+        <div>{'to resolve ENS for Send dapp'}</div>
+      </div>
+      <div
+        className='mainDappEnableChains'
+        onClick={() => {
+          link.send('tray:action', 'navDash', { view: 'chains', data: {} })
+          setTimeout(() => {
+            link.send('frame:close')
+          }, 100)
+        }}
+      >
+        View Chains
+      </div>
+    </>
+  )
+}
+
+const Error = ({ isMainnetConnected }) => {
+  if (!isMainnetConnected) {
+    return <MainnetDisconnected />
+  }
+
+  return <FailedToLoad />
+}
 
 class App extends React.Component {
   constructor(...args) {
@@ -13,7 +50,6 @@ class App extends React.Component {
 
   render() {
     const dapp = this.store(`main.dapp.details.${this.props.id}`)
-    console.log('dapp info is ', dapp)
     let name = dapp ? dapp.domain : null
     if (name) {
       name = name.split('.')
@@ -26,66 +62,31 @@ class App extends React.Component {
     }
 
     const frame = this.store('main.frames', window.frameId)
-    const currentView = frame.views[frame.currentView] || {}
-    const currentDapp = currentView.dappId ? this.store('main.dapps', currentView.dappId) : ''
+    const { ready } = frame.views[frame.currentView] || {}
 
     // Hard code send dapp status for now
     const sendDapp =
       this.store('main.dapps', '0xe8d705c28f65bc3fe10df8b22f9daa265b99d0e1893b2df49fd38120f0410bca') || {}
 
-    const loaderStyle =
-      currentDapp && currentDapp.colors
-        ? {
-            borderTop: `3px solid ${currentDapp.colors.backgroundShade}`,
-            borderRight: `3px solid ${currentDapp.colors.backgroundShade}`,
-            borderBottom: `3px solid ${currentDapp.colors.backgroundShade}`,
-            borderLeft: `3px solid ${currentDapp.colors.backgroundLight}`
-          }
-        : {}
+    const mainnet = this.store('main.networks.ethereum.1')
+    const isMainnetConnected =
+      mainnet.on && (mainnet.connection.primary.connected || mainnet.connection.secondary.connected)
+
+    const shouldDisplayError =
+      (sendDapp.status !== 'ready' && !isMainnetConnected) || sendDapp.status === 'failed'
 
     return (
       <div className='splash'>
         <Native />
-        {/* <div className='overlay' /> */}
-        {/* <div className='mainLeft'>
-          <div
-            className='accountTile'
-            onClick={() => {
-              link.send('unsetCurrentView')
-            }}
-          >
-            <div className='accountIcon'></div>
-          </div>
-          {/* <div className='dappIcons'>
-            <div className='dappIconsScroll'>
-              <div className='dappIconsWrap'>
-                {Object.keys(store('main.dapps')).map((id, index) => {
-                  return <DappTile key={`dapp-${index}`} ens={store('main.dapps', id, 'ens')} />
-                })}
-              </div>
-            </div>
-          </div>
-        </div> */}
         <div className='main'>
           <div className='mainTop' />
-          {currentDapp ? (
-            <>
-              {/* <div
-                className='mainDappBackground'
-                style={{
-                  background: currentDapp.colors ? currentDapp.colors.background : 'none'
-                }}
-              >
-                <div className='mainDappBackgroundTop' />
-              </div> */}
-            </>
-          ) : !currentView.ready ? (
-            sendDapp.status === 'failed' ? (
-              <div className='mainDappLoading'>
-                <div className='mainDappLoadingText'>{'Send dapp failed to load'}</div>
-              </div>
-            ) : null
-          ) : null}
+          <div className='mainDappLoading'>
+            {shouldDisplayError ? (
+              <Error isMainnetConnected={isMainnetConnected} />
+            ) : (
+              !ready && <div className='loader' />
+            )}
+          </div>
         </div>
       </div>
     )
@@ -93,13 +94,3 @@ class App extends React.Component {
 }
 
 export default Restore.connect(App)
-
-// <div className='mainApps'>
-//   {Object.keys(store('main.dapps')).map(id => {
-//     return (
-//       <pre>
-//         {JSON.stringify(store('main.dapps', id), null, 4)}
-//       </pre>
-//     )
-//   })}
-// </div>

@@ -1,17 +1,17 @@
+import log from 'electron-log'
+import { utils } from 'ethers'
+import { validate as validateUUID } from 'uuid'
+import { addHexPrefix, intToHex } from '@ethereumjs/util'
+import { SignTypedDataVersion } from '@metamask/eth-sig-util'
+
 import provider from '../../../main/provider'
 import accounts from '../../../main/accounts'
 import connection from '../../../main/chains'
-import { hasPermission } from '../../../main/provider/helpers'
 import store from '../../../main/store'
 import chainConfig from '../../../main/chains/config'
+import { hasSubscriptionPermission } from '../../../main/provider/subscriptions'
 import { gweiToHex } from '../../../resources/utils'
 import { Type as SignerType } from '../../../resources/domain/signer'
-
-import { validate as validateUUID } from 'uuid'
-import { utils } from 'ethers'
-import { addHexPrefix, intToHex } from '@ethereumjs/util'
-import log from 'electron-log'
-import { SignTypedDataVersion } from '@metamask/eth-sig-util'
 
 const address = '0x22dd63c3619818fdbc262c78baee43cb61e9cccf'
 
@@ -23,14 +23,12 @@ jest.mock('../../../main/accounts', () => ({}))
 jest.mock('../../../main/reveal', () => ({
   resolveEntityType: jest.fn().mockResolvedValue('external')
 }))
-jest.mock('../../../main/provider/helpers', () => {
-  const helpers = jest.requireActual('../../../main/provider/helpers')
 
-  // this entire module should be mocked for unit tests but many of the tests below were
-  // written relying on the real implementation so they need to be migrated individually
+jest.mock('../../../main/provider/subscriptions', () => {
+  const { SubscriptionType } = jest.requireActual('../../../main/provider/subscriptions')
   return {
-    ...helpers,
-    hasPermission: jest.fn()
+    SubscriptionType,
+    hasSubscriptionPermission: jest.fn()
   }
 })
 
@@ -65,7 +63,7 @@ beforeEach(() => {
   connection.connections = {
     ethereum: {
       1: { chainConfig: chainConfig(1, 'london'), primary: { connected: true } },
-      4: { chainConfig: chainConfig(4, 'london'), primary: { connected: true } }
+      5: { chainConfig: chainConfig(5, 'london'), primary: { connected: true } }
     }
   }
 
@@ -79,7 +77,9 @@ beforeEach(() => {
 
 describe('#send', () => {
   beforeEach(() => {
-    store.set('main.origins', '8073729a-5e59-53b7-9e69-5d9bcff94087', { chain: { id: 1, type: 'ethereum' } })
+    store.set('main.origins', '8073729a-5e59-53b7-9e69-5d9bcff94087', {
+      chain: { id: 1, type: 'ethereum', on: true }
+    })
   })
 
   const send = (request, cb = jest.fn()) =>
@@ -103,7 +103,11 @@ describe('#send', () => {
 
     send(request)
 
-    expect(connection.send).toHaveBeenCalledWith(request, expect.any(Function), { type: 'ethereum', id: 1 })
+    expect(connection.send).toHaveBeenCalledWith(request, expect.any(Function), {
+      type: 'ethereum',
+      id: 1,
+      on: true
+    })
   })
 
   it('returns an error when an unknown chain is given', (done) => {
@@ -130,7 +134,7 @@ describe('#send', () => {
 
   describe('#eth_chainId', () => {
     it('returns the current chain id from the store', () => {
-      store.set('main.networks.ethereum', 1, { id: 1 })
+      store.set('main.networks.ethereum', 1, { id: 1, on: true })
 
       send({ method: 'eth_chainId', chainId: '0x1' }, (response) => {
         expect(response.result).toBe('0x1')
@@ -138,20 +142,17 @@ describe('#send', () => {
     })
 
     it('returns a chain id from the target chain', () => {
-      store.set('main.networks.ethereum', 4, { id: 4 })
+      store.set('main.networks.ethereum', 5, { id: 5, on: true })
 
-      send({ method: 'eth_chainId', chainId: '0x4' }, (response) => {
-        expect(response.result).toBe('0x4')
+      send({ method: 'eth_chainId', chainId: '0x5' }, (response) => {
+        expect(response.result).toBe('0x5')
       })
     })
 
-    it('returns an error for a disconnected chain', () => {
-      connection.connections.ethereum[11] = {
-        chainConfig: chainConfig(11, 'london'),
-        primary: { connected: false }
-      }
+    it('returns an error for a disabled chain', () => {
+      store.set('main.networks.ethereum', 5, { id: 5, on: false })
 
-      send({ method: 'eth_chainId', chainId: '0xb' }, (response) => {
+      send({ method: 'eth_chainId', chainId: '0x5' }, (response) => {
         expect(response.error.message).toBe('not connected')
         expect(response.result).toBeUndefined()
       })
@@ -188,7 +189,7 @@ describe('#send', () => {
         done()
       }
 
-      sendRequest({ chainId: '0x4', nativeCurrency: { symbol: 'rETH' } }, cb)
+      sendRequest({ chainId: '0x5', nativeCurrency: { symbol: 'gETH' } }, cb)
     })
 
     it('rejects a request with no native currency', (done) => {
@@ -198,7 +199,7 @@ describe('#send', () => {
         done()
       }
 
-      sendRequest({ chainId: '0x4', chainName: 'Rinkeby' }, cb)
+      sendRequest({ chainId: '0x5', chainName: 'Goerli' }, cb)
     })
 
     it('should create a request to add the chain', (done) => {
@@ -398,6 +399,7 @@ describe('#send', () => {
     let request
 
     beforeEach(() => {
+      store.set('main.networks.ethereum.1', { id: 1, on: true })
       store.set('main.tokens.custom', [])
 
       request = {
@@ -444,6 +446,26 @@ describe('#send', () => {
 
       send(request, ({ result }) => {
         expect(result).toBe(true)
+        expect(accountRequests).toHaveLength(0)
+      })
+    })
+
+    it('rejects a request when the chain does not exist', () => {
+      store.set('main.networks.ethereum.1', undefined)
+
+      send(request, ({ error }) => {
+        expect(error.code).toBe(-1)
+        expect(error.message).toMatch('not connected')
+        expect(accountRequests).toHaveLength(0)
+      })
+    })
+
+    it('rejects a request when the chain is disabled', () => {
+      store.set('main.networks.ethereum.1', { id: 1, on: false })
+
+      send(request, ({ error }) => {
+        expect(error.code).toBe(-1)
+        expect(error.message).toMatch('not connected')
         expect(accountRequests).toHaveLength(0)
       })
     })
@@ -503,7 +525,7 @@ describe('#send', () => {
       })
     })
 
-    it('returns a list of active chains', () => {
+    it('returns a list of enabled chains', () => {
       store.set('main.networks.ethereum', {
         137: {
           name: 'polygon',
@@ -541,7 +563,8 @@ describe('#send', () => {
               name: 'Ether',
               symbol: 'ETH',
               decimals: 18
-            }
+            },
+            connected: true
           },
           {
             name: 'polygon',
@@ -558,20 +581,21 @@ describe('#send', () => {
               name: 'Matic',
               symbol: 'MATIC',
               decimals: 18
-            }
+            },
+            connected: true
           }
         ])
       })
     })
 
-    it('does not return disconnected chains', () => {
+    it('does not return disabled chains', () => {
       store.set('main.networks.ethereum', {
         137: {
           name: 'polygon',
           id: 137,
           explorer: 'https://polygonscan.com',
           connection: { primary: { connected: false }, secondary: { connected: false } },
-          on: true
+          on: false
         },
         1: {
           name: 'mainnet',
@@ -597,7 +621,8 @@ describe('#send', () => {
               name: 'Ether',
               symbol: 'ETH',
               decimals: 18
-            }
+            },
+            connected: true
           }
         ])
       })
@@ -692,7 +717,7 @@ describe('#send', () => {
   })
 
   describe('#eth_getTransactionByHash', () => {
-    const chain = 4
+    const chain = 5
     const txHash = '0x06c1c968d4bd20c0ebfed34f6f34d8a5d189d9d2ce801f2ee8dd45dac32628d5'
     const request = {
       method: 'eth_getTransactionByHash',
@@ -824,7 +849,7 @@ describe('#send', () => {
         } catch (e) {
           done(e)
         }
-      }, '0x4')
+      }, '0x5')
     })
 
     it('populates the transaction with the request chain id if not provided in the transaction', (done) => {
@@ -1341,9 +1366,9 @@ describe('#send', () => {
     })
 
     // these signers only support V4+
-    const hardwareSigners = [SignerType.Ledger, SignerType.Lattice, SignerType.Trezor]
+    const HardwareSignersSupportingV4Only = [SignerType.Ledger, SignerType.Trezor]
 
-    hardwareSigners.forEach((signerType) => {
+    HardwareSignersSupportingV4Only.forEach((signerType) => {
       it(`does not submit a V3 request to a ${signerType}`, (done) => {
         accounts.get.mockImplementationOnce((addr) => {
           return addr === address ? { id: address, address, lastSignerType: signerType } : {}
@@ -1357,6 +1382,17 @@ describe('#send', () => {
           done()
         })
       })
+    })
+
+    it('should submit a V3 request to a Lattice', () => {
+      accounts.get.mockImplementationOnce((addr) => {
+        return addr === address ? { id: address, address, lastSignerType: SignerType.Lattice } : {}
+      })
+      const params = [address, typedData]
+
+      send({ method: 'eth_signTypedData_v3', params })
+
+      verifyRequest(SignTypedDataVersion.V3, typedData)
     })
 
     const unknownVersions = ['_v5', '_v1.1', 'v3']
@@ -1639,7 +1675,7 @@ describe('#assetsChanged', () => {
   })
 
   it('fires an assetsChanged event when an account has permission', (done) => {
-    hasPermission.mockReturnValueOnce(true)
+    hasSubscriptionPermission.mockReturnValueOnce(true)
 
     const assets = { account: address, nativeCurrency: [], erc20: ['tokens'] }
 
@@ -1649,7 +1685,7 @@ describe('#assetsChanged', () => {
       expect(payload.params.subscription).toBe(subscription.id)
       expect(payload.params.result).toEqual(assets)
 
-      expect(hasPermission).toHaveBeenCalledWith(address, subscription.originId)
+      expect(hasSubscriptionPermission).toHaveBeenCalledWith('assetsChanged', address, subscription.originId)
 
       done()
     })
@@ -1658,7 +1694,7 @@ describe('#assetsChanged', () => {
   })
 
   it('does not fire an assetsChanged event when an account does not have permission', () => {
-    hasPermission.mockReturnValueOnce(false)
+    hasSubscriptionPermission.mockReturnValueOnce(false)
 
     const assets = { account: address, nativeCurrency: [], erc20: ['tokens'] }
 
@@ -1751,7 +1787,8 @@ describe('state change events', () => {
             name: 'Ether',
             symbol: 'ETH',
             decimals: 18
-          }
+          },
+          connected: true
         },
         {
           name: 'Polygon',
@@ -1768,7 +1805,8 @@ describe('state change events', () => {
             name: 'Matic',
             symbol: 'MATIC',
             decimals: 18
-          }
+          },
+          connected: true
         }
       ])
 
@@ -1789,7 +1827,9 @@ describe('state change events', () => {
       137: { primaryColor: 'accent8', nativeCurrency: { symbol: 'MATIC', name: 'Matic', decimals: 18 } }
     })
 
+    hasSubscriptionPermission.mockReturnValueOnce(true)
     store.getObserver('provider:chains').fire()
+    jest.runAllTimers()
   })
 
   it('fires an assetsChanged event to subscribers', (done) => {
@@ -1822,7 +1862,7 @@ describe('state change events', () => {
     store.set('main.balances', address, [ethBalance, tokenBalance])
     store.set('selected.current', address)
 
-    hasPermission.mockReturnValueOnce(true)
+    hasSubscriptionPermission.mockReturnValueOnce(true)
     accounts.current = () => ({ id: address })
     provider.subscriptions.assetsChanged = [subscription]
 

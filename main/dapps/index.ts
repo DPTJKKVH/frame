@@ -24,7 +24,9 @@ class DappStream extends Readable {
     }
     this.push(null)
   }
-  _read() {}
+  _read() {
+    // empty
+  }
 }
 
 function getDapp(dappId: string): Dapp {
@@ -174,7 +176,7 @@ let nextId = 0
 const getId = () => (++nextId).toString()
 
 const surface = {
-  manifest: (ens: string) => {
+  manifest: (_ens: string) => {
     // gets the dapp manifest and returns all options and details for user to confirm before installing
   },
   add: (dapp: Dapp) => {
@@ -188,7 +190,7 @@ const surface = {
     // If ens name has not been installed, start install
     if (!existingDapp) store.appDapp({ id, ens, status, config, manifest: {}, current: {} })
   },
-  addServerSession(namehash: string /* , session */) {
+  addServerSession(_namehash: string /* , session */) {
     // server.sessions.add(namehash, session)
   },
   unsetCurrentView(frameId: string) {
